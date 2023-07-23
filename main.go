@@ -34,7 +34,7 @@ func main() {
 		logger.Fatal("service.Pipe", "error", err)
 	}
 
-	err = service.Prepare()
+	err = service.Prepare(configuration.IndependentType)
 	if err != nil {
 		logger.Fatal("service.Prepare", "error", err)
 	}
