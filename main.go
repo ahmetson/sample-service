@@ -30,7 +30,7 @@ func main() {
 	replier, _ := handler.NewReplier(logger, calcUrl)
 	service.AddController("replier", replier)
 
-	service.RequireProxy(webProxyUrl)
+	service.RequireProxy(webProxyUrl, configuration.DefaultContext)
 
 	err = service.Pipe(webProxyUrl, "replier")
 	if err != nil {
