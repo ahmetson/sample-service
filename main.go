@@ -9,6 +9,9 @@ import (
 
 const webProxyUrl = "github.com/ahmetson/web-proxy"
 
+// sample extension that utilizes calculator
+const calcUrl = "github.com/ahmetson/sample-extension"
+
 func main() {
 	logger, err := log.New("sample", false)
 	if err != nil {
@@ -24,7 +27,7 @@ func main() {
 		logger.Fatal("independent.New", "error", err)
 	}
 
-	replier, _ := handler.NewReplier(logger)
+	replier, _ := handler.NewReplier(logger, calcUrl)
 	service.AddController("replier", replier)
 
 	service.RequireProxy(webProxyUrl)
