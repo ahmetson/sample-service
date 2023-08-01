@@ -1,3 +1,20 @@
+// Package handler defines the server along the command handlers.
+//
+// There are three commands that this server handles:
+// set_counter
+// get_counter
+// add_then_mul
+//
+// The set_counter is updating the in-memory counter. The counter is updatable by anyone.
+// The get_counter returns the value of the counter.
+//
+// add_then_mul is doing two operations at a time.
+// it receives three numbers: x, y, z.
+// then adds the x and y. The result is then multiplied by z.
+// the result if multiplication returned to the requester.
+//
+// The add_then_mul depends on the sample extension.
+// since the add, mul commands are defined there.
 package handler
 
 import (
@@ -16,81 +33,66 @@ var calcExtension string
 func onSetCounter(request message.Request, _ *log.Logger, _ ...*remote.ClientSocket) message.Reply {
 	newValue, err := request.Parameters.GetUint64("counter")
 	if err != nil {
-		return message.Fail("failed to get parameter: " + err.Error())
+		return request.Fail("failed to get parameter: " + err.Error())
 	}
 
 	counter = newValue
 
-	return message.Reply{
-		Status:     message.OK,
-		Message:    "",
-		Parameters: key_value.Empty(),
-	}
+	return request.Ok(key_value.Empty())
 }
 
-func onGetCounter(_ message.Request, _ *log.Logger, _ ...*remote.ClientSocket) message.Reply {
+func onGetCounter(request message.Request, _ *log.Logger, _ ...*remote.ClientSocket) message.Reply {
 	parameters := key_value.Empty()
 	parameters.Set("counter", counter)
-	return message.Reply{
-		Status:     message.OK,
-		Message:    "",
-		Parameters: parameters,
-	}
+
+	return request.Ok(parameters)
 }
 
 // given two numbers add them, then multiply it:
 //
 // (x + y) * z
+//
+// stack is:
+// web-proxy source -> proxy controller -> sample service -> extension -> extension
+//
+// parameters, err := request.Run("calc", "add", parameters)
+// request.Run(clientSocket, "mul", parameters)
+// request.Fail()
+// request.Ok(parameters)
 func onAddThenMul(request message.Request, _ *log.Logger, extensions ...*remote.ClientSocket) message.Reply {
-	x, err := request.Parameters.GetUint64("x")
-	if err != nil {
-		return message.Fail("request.Parameters: %w" + err.Error())
-	}
-	y, err := request.Parameters.GetUint64("y")
-	if err != nil {
-		return message.Fail("request.Parameters: %w" + err.Error())
-	}
-	z, err := request.Parameters.GetUint64("z")
-	if err != nil {
-		return message.Fail("request.Parameters: %w" + err.Error())
-	}
+	x, _ := request.Parameters.GetUint64("x")
+	y, _ := request.Parameters.GetUint64("y")
+	z, _ := request.Parameters.GetUint64("z")
 
 	calcClient := remote.FindClient(extensions, calcExtension)
-	if calcClient == nil {
-		return message.Fail("no extension: " + calcExtension)
-	}
 
-	addRequest := message.Request{
-		Command:    "add",
-		Parameters: key_value.Empty().Set("x", x).Set("y", y),
-	}
-	addReply, err := calcClient.RequestRemoteService(&addRequest)
+	addParameters := key_value.Empty().
+		Set("x", x).
+		Set("y", y)
+
+	request.Next("add", addParameters)
+	addReply, err := calcClient.RequestRemoteService(&request)
+
 	if err != nil {
-		return message.Fail(fmt.Sprintf("request command '%s' to '%s' extension: %v", "add", calcExtension, err))
+		return request.Fail(fmt.Sprintf("request command '%s' to '%s' extension: %v", "add", calcExtension, err))
 	}
 
 	sum, err := addReply.GetUint64("z")
 	if err != nil {
-		return message.Fail("no 'z':" + err.Error())
+		return request.Fail("no 'z':" + err.Error())
 	}
 
-	mulRequest := message.Request{
-		Command:    "mul",
-		Parameters: key_value.Empty().Set("x", z).Set("y", sum),
-	}
+	mulParameters := key_value.Empty().
+		Set("x", z).
+		Set("y", sum)
+	request.Next("mul", mulParameters)
 
-	mulReply, err := calcClient.RequestRemoteService(&mulRequest)
+	mulReply, err := calcClient.RequestRemoteService(&request)
 	if err != nil {
-		return message.Fail(fmt.Sprintf("request command '%s' to '%s' extension: %v", "mul", calcExtension, err))
+		return request.Fail(fmt.Sprintf("request command '%s' to '%s' extension: %v", "mul", calcExtension, err))
 	}
 
-	reply := message.Reply{
-		Status:     message.OK,
-		Message:    "",
-		Parameters: mulReply,
-	}
-
-	return reply
+	return request.Ok(mulReply)
 }
 
 // NewReplier returns the controller

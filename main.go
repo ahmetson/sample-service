@@ -22,16 +22,15 @@ func main() {
 		logger.Fatal("configuration.New", "error", err)
 	}
 
+	replier, _ := handler.NewReplier(logger, calcUrl)
+
 	service, err := independent.New(appConfig, logger.Child("service"))
 	if err != nil {
 		logger.Fatal("independent.New", "error", err)
 	}
 
-	replier, _ := handler.NewReplier(logger, calcUrl)
 	service.AddController("replier", replier)
-
 	service.RequireProxy(webProxyUrl, configuration.DefaultContext)
-
 	err = service.Pipe(webProxyUrl, "replier")
 	if err != nil {
 		logger.Fatal("service.Pipe", "error", err)
